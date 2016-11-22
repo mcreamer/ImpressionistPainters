@@ -13,9 +13,13 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.Toast;
+
+import com.google.android.gms.vision.face.Face;
 
 import junit.runner.BaseTestRunner;
 
@@ -24,6 +28,7 @@ import java.util.Random;
 
 /**
  * Created by jon on 3/20/2016.
+ * Editted by Mark
  */
 public class ImpressionistView extends View {
 
@@ -36,17 +41,18 @@ public class ImpressionistView extends View {
 
     private int _alpha = 150;
     private int _defaultRadius = 25;
-    private Point _lastPoint = null;
-    private long _lastPointTime = -1;
-    private boolean _useMotionSpeedForBrushStrokeSize = true;
+//    private Point _lastPoint = null;
+//    private long _lastPointTime = -1;
+//    private boolean _useMotionSpeedForBrushStrokeSize = true;
     private Paint _paintBorder = new Paint();
     private BrushType _brushType = BrushType.Square;
-    private float _minBrushRadius = 5;
 
-    private Point center = new Point();
     private Paint _whitePaint = new Paint(Color.WHITE);
     private int _minRadius = 5;
     private int _maxRadius = 30;
+
+    private SparseArray<Face> faces;
+    private SparseArray<Rect> canvasFaceBoxes;
 
     public ImpressionistView(Context context) {
         super(context);
@@ -98,9 +104,8 @@ public class ImpressionistView extends View {
         if(bitmap != null) {
             _offScreenBitmap = getDrawingCache().copy(Bitmap.Config.ARGB_8888, true);
             _offScreenCanvas = new Canvas(_offScreenBitmap);
+            canvasFaceBoxes = new SparseArray<>();
         }
-
-        center.set(getWidth()/2,getHeight()/2);
     }
 
     /**
@@ -127,6 +132,7 @@ public class ImpressionistView extends View {
      * Clears the painting
      */
     public void clearPainting(){
+        Toast.makeText(getContext(), "Drawing Cleared", Toast.LENGTH_SHORT).show();
         _offScreenCanvas.drawColor(Color.WHITE);
         invalidate();
     }
@@ -140,17 +146,14 @@ public class ImpressionistView extends View {
         if(_offScreenBitmap != null) {
             canvas.drawBitmap(_offScreenBitmap, 0, 0, _paint);
 
-            // Clean the top margin
+            // Clean the margins
             canvas.drawRect(0,0,getWidth(),frame.top,_whitePaint);
-
-            // Clean the bottom margin
             canvas.drawRect(0,frame.bottom,getWidth(),getHeight(),_whitePaint);
-
-            // Clean the left margin
             canvas.drawRect(0,0,frame.left,getHeight(),_whitePaint);
-
-            // Clean the right margin
             canvas.drawRect(frame.right,0,getWidth(),getHeight(),_whitePaint);
+
+            // Uncomment to show face boxes
+            //drawFaceBoxes(canvas);
         }
 
         // Draw the border. Helpful to see the size of the bitmap in the ImageView
@@ -179,11 +182,7 @@ public class ImpressionistView extends View {
             return true;
         int pictureColor = bitmap.getPixel((int)picX,(int)picY);
         _paint.setColor(pictureColor);
-
-        //TODO
-        //Basically, the way this works is to list for Touch Down and Touch Move events and determine where those
-        //touch locations correspond to the bitmap in the ImageView. You can then grab info about the bitmap--like the pixel color--
-        //at that location
+        _paint.setStrokeWidth(3);
 
         switch(motionEvent.getAction()) {
             case MotionEvent.ACTION_DOWN:
@@ -191,41 +190,74 @@ public class ImpressionistView extends View {
             case MotionEvent.ACTION_MOVE:
                 _cursorView.setTouchPoint((int)x,(int)y);
 
+                float faceScale = 1f;
+                float size = _defaultRadius;
+
+                // If the cursor is on a face, reduce the drawing size for more fine tuned precision
+                if(faces != null) {
+                    for(int i = 0; i < canvasFaceBoxes.size(); i++) {
+                        Rect canvasFaceBox = canvasFaceBoxes.get(i);
+
+                        if(canvasFaceBox.contains((int)x,(int)y)) {
+                            faceScale = 1/2.0f;
+                            size *= 1/2.0f;
+                        }
+                    }
+                }
+
                 if(_brushType == BrushType.Circle) {
-                    _offScreenCanvas.drawCircle(x,y,_defaultRadius,_paint);
+                    _offScreenCanvas.drawCircle(x,y,size,_paint);
                 }
                 else if(_brushType == BrushType.Square) {
-                    _offScreenCanvas.drawRect(x,y,x+2*_defaultRadius,y+2*_defaultRadius,_paint);
+                    _offScreenCanvas.drawRect(x-size,y-size,x+size,y+size,_paint);
                 }
                 else if(_brushType == BrushType.CircleSplatter) {
                     for(int i = 0; i < 5; i++) {
-                        int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
-                        int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int x1 = (int)(x+Math.random()*2*size-size);
+                        int y1 = (int)(y+Math.random()*2*size-size);
                         int radius = _minRadius+(int)(Math.random()*(_maxRadius-_minRadius));
-                        _offScreenCanvas.drawCircle(x1, y1, radius, _paint);
+                        _offScreenCanvas.drawCircle(x1, y1, radius*faceScale, _paint);
                     }
                 }
                 else if(_brushType == BrushType.Line) {
-                    int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
-                    int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                    int x1 = (int)(x+Math.random()*2*size-size);
+                    int y1 = (int)(y+Math.random()*2*size-size);
 
-                    int x2 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
-                    int y2 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                    int x2 = (int)(x+Math.random()*2*size-size);
+                    int y2 = (int)(y+Math.random()*2*size-size);
                     _offScreenCanvas.drawLine(x1,y1,x2,y2, _paint);
                 }
                 else if(_brushType == BrushType.LineSplatter) {
                     for(int i = 0; i < 10; i++) {
-                        int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
-                        int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int x1 = (int)(x+Math.random()*2*size-size);
+                        int y1 = (int)(y+Math.random()*2*size-size);
 
-                        int x2 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
-                        int y2 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int x2 = (int)(x+Math.random()*2*size-size);
+                        int y2 = (int)(y+Math.random()*2*size-size);
                         _offScreenCanvas.drawLine(x1,y1,x2,y2, _paint);
                     }
                 }
                 else if(_brushType == BrushType.Radial) {
+                    // Find the closest face to orbit
+                    Point center = new Point();
+
+                    Rect faceBounds;
+                    Point boxCenter = new Point();
+                    double dist,minDist = Math.max(getWidth(),getHeight());
+                    for(int i = 0; i < canvasFaceBoxes.size(); i++) {
+                        faceBounds = canvasFaceBoxes.get(i);
+                        boxCenter.set((faceBounds.right+faceBounds.left)/2,(faceBounds.bottom+faceBounds.top)/2);
+
+                        dist = Math.sqrt(Math.pow(boxCenter.x-x,2)+Math.pow(boxCenter.y-y,2));
+                        if(dist < minDist) {
+                            center.set(boxCenter.x,boxCenter.y);
+                            minDist = dist;
+                        }
+                    }
+
                     // The ratio that helps determine the line length in relation to the center
                     float ratio = 0.25f;
+
                     double line_radius = ratio*Math.sqrt(Math.pow(center.x-x,2)+Math.pow(center.y-y,2));
 
                     float n_x1 = (float)(x - line_radius*Math.cos(Math.atan((y-center.y)/(x-center.x))));
@@ -236,7 +268,34 @@ public class ImpressionistView extends View {
 
                     _offScreenCanvas.drawLine(n_x1,n_y1,n_x2,n_y2,_paint);
                 }
+                else if(_brushType == BrushType.Ring) {
+                    // Find the closest face to orbit
+                    Point center = new Point();
 
+                    Rect faceBounds;
+                    Point boxCenter = new Point();
+                    double dist,minDist = Math.max(getWidth(),getHeight());
+                    for(int i = 0; i < canvasFaceBoxes.size(); i++) {
+                        faceBounds = canvasFaceBoxes.get(i);
+                        boxCenter.set((faceBounds.right+faceBounds.left)/2,(faceBounds.bottom+faceBounds.top)/2);
+
+                        dist = Math.sqrt(Math.pow(boxCenter.x-x,2)+Math.pow(boxCenter.y-y,2));
+                        if(dist < minDist) {
+                            center.set(boxCenter.x,boxCenter.y);
+                            minDist = dist;
+                        }
+                    }
+
+                    // The ratio that helps determine the line length in relation to the center
+                    double ring_length = 50;
+                    float n_x1 = (float)(x - ring_length/2*Math.cos(Math.atan(-(x-center.x)/(y-center.y))));
+                    float n_y1 = (float)(y - ring_length/2*Math.sin(Math.atan(-(x-center.x)/(y-center.y))));
+
+                    float n_x2 = (float)(x + ring_length/2*Math.cos(Math.atan(-(x-center.x)/(y-center.y))));
+                    float n_y2 = (float)(y + ring_length/2*Math.sin(Math.atan(-(x-center.x)/(y-center.y))));
+
+                    _offScreenCanvas.drawLine(n_x1,n_y1,n_x2,n_y2,_paint);
+                }
                 _cursorView.invalidate();
                 break;
             case MotionEvent.ACTION_UP:
@@ -246,6 +305,23 @@ public class ImpressionistView extends View {
 
         invalidate();
         return true;
+    }
+
+    //Edited from https://code.tutsplus.com/tutorials/an-introduction-to-face-detection-on-android--cms-25212
+    private void drawFaceBoxes(Canvas canvas) {
+        //paint should be defined as a member variable rather than
+        //being created on each onDraw request, but left here for
+        //emphasis.
+        Paint paint = new Paint();
+        paint.setColor(Color.GREEN);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(5);
+
+        Rect rect;
+        for(int i = 0; i < canvasFaceBoxes.size(); i++) {
+            rect = canvasFaceBoxes.get(i);
+            canvas.drawRect(rect, paint);
+        }
     }
 
     /**
@@ -296,6 +372,35 @@ public class ImpressionistView extends View {
 
     public Bitmap getBitmap() {
         return _offScreenBitmap;
+    }
+
+    //Edited from https://code.tutsplus.com/tutorials/an-introduction-to-face-detection-on-android--cms-25212
+    public void setFaces(SparseArray<Face> faces) {
+        this.faces = faces;
+
+        int left = 0;
+        int top = 0;
+        int right = 0;
+        int bottom = 0;
+
+        if(_imageView.getDrawable() != null) {
+            Bitmap bitmap = ((BitmapDrawable) _imageView.getDrawable()).getBitmap();
+            Rect bounds = getBitmapPositionInsideImageView(_imageView);
+            float scalex = bitmap.getWidth() / (float) (bounds.width());
+            float scaley = bitmap.getHeight() / (float) (bounds.height());
+
+            for (int i = 0; i < faces.size(); i++) {
+                Face face = faces.valueAt(i);
+
+                left = (int)(face.getPosition().x / scalex + bounds.left);
+                top = (int)(face.getPosition().y / scaley + bounds.top);
+                right = (int)((face.getPosition().x + face.getWidth()) / scalex + bounds.left);
+                bottom = (int)((face.getPosition().y + face.getHeight()) / scaley + bounds.top);
+
+                Rect newRect = new Rect(left, top, right, bottom);
+                canvasFaceBoxes.put(i,newRect);
+            }
+        }
     }
 }
 

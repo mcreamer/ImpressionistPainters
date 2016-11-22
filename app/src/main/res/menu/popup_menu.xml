@@ -18,6 +18,8 @@
         android:title="Line Splatter" />
 
     <item android:id="@+id/menuRadial"
-        android:title="Radial" />
+        android:title="Facial Radial" />
 
+    <item android:id="@+id/menuRing"
+        android:title="Facial Ring" />
 </menu>

@@ -9,5 +9,6 @@ public enum BrushType {
     Line,
     CircleSplatter,
     LineSplatter,
-    Radial
+    Radial,
+    Ring
 }

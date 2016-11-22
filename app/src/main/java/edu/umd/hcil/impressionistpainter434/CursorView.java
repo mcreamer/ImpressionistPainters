@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 /**
@@ -15,28 +16,28 @@ import android.view.View;
 public class CursorView extends View {
     private boolean touching = false;
     private Point cursor = new Point();
-    private Paint paint = new Paint();
+    private Paint cursorPaint = new Paint();
     private Bitmap bitmap;
 
     public CursorView(Context context) {
         super(context);
         this.setBackgroundColor(Color.TRANSPARENT);
 
-        paint.setColor(Color.BLACK);
+        cursorPaint.setColor(Color.BLACK);
     }
 
     public CursorView(Context context, AttributeSet attrs) {
         super(context, attrs);
         this.setBackgroundColor(Color.TRANSPARENT);
 
-        paint.setColor(Color.BLACK);
+        cursorPaint.setColor(Color.BLACK);
     }
 
     public CursorView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         this.setBackgroundColor(Color.TRANSPARENT);
 
-        paint.setColor(Color.BLACK);
+        cursorPaint.setColor(Color.BLACK);
     }
 
     @Override
@@ -45,13 +46,13 @@ public class CursorView extends View {
 
         // Draw the cursor if the user's touching the screen
         if(touching) {
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.BLACK);
-            canvas.drawCircle(cursor.x,cursor.y,20,paint);
+            cursorPaint.setStyle(Paint.Style.FILL);
+            cursorPaint.setColor(Color.BLACK);
+            canvas.drawCircle(cursor.x,cursor.y,20,cursorPaint);
 
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(Color.WHITE);
-            canvas.drawCircle(cursor.x,cursor.y,20,paint);
+            cursorPaint.setStyle(Paint.Style.STROKE);
+            cursorPaint.setColor(Color.WHITE);
+            canvas.drawCircle(cursor.x,cursor.y,20,cursorPaint);
         }
     }
 
@@ -61,9 +62,5 @@ public class CursorView extends View {
 
     public void setTouching(boolean input) {
         touching = input;
-    }
-
-    public void setBitmap(Bitmap input) {
-        bitmap = input;
     }
 }

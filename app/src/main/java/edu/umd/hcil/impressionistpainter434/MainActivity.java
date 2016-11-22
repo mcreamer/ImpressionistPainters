@@ -10,6 +10,7 @@ import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -21,6 +22,10 @@ import android.widget.PopupMenu;
 import android.widget.PopupMenu.OnMenuItemClickListener;
 import android.widget.Toast;
 
+import com.google.android.gms.vision.Frame;
+import com.google.android.gms.vision.face.Face;
+import com.google.android.gms.vision.face.FaceDetector;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -30,6 +35,8 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
 
     private static int RESULT_LOAD_IMAGE = 1;
     private  ImpressionistView _impressionistView;
+
+    private SparseArray<Face> mFaces;
 
     // These images are downloaded and added to the Android Gallery when the 'Download Images' button is clicked.
     // This was super useful on the emulator where there are no images by default
@@ -110,8 +117,12 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
                 _impressionistView.setBrushType(BrushType.LineSplatter);
                 return true;
             case R.id.menuRadial:
-                Toast.makeText(this, "Radial Brush", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Face Radial Brush", Toast.LENGTH_SHORT).show();
                 _impressionistView.setBrushType(BrushType.Radial);
+                return true;
+            case R.id.menuRing:
+                Toast.makeText(this, "Face Ring Brush", Toast.LENGTH_SHORT).show();
+                _impressionistView.setBrushType(BrushType.Ring);
                 return true;
         }
         return false;
@@ -216,8 +227,25 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
                 imageView.setDrawingCacheEnabled(true);
 
                 // Execute the computer vision algorithm
+                // Credit: https://code.tutsplus.com/tutorials/an-introduction-to-face-detection-on-android--cms-25212
+                FaceDetector detector = new FaceDetector.Builder(this)
+                        .setTrackingEnabled(false)
+                        .setLandmarkType(FaceDetector.ALL_LANDMARKS)
+                        .setMode(FaceDetector.FAST_MODE)
+                        .build();
+
+                if (!detector.isOperational()) {
+                    //Handle contingency
+                    Log.d("Mark","Contingency");
+                } else {
+                    Log.d("Mark", "Detecting faces");
+                    Frame frame = new Frame.Builder().setBitmap(bitmap).build();
+                    mFaces = detector.detect(frame);
+                    detector.release();
+                }
 
                 // Give the information to the impressionist canvas
+                _impressionistView.setFaces(mFaces);
 
             } catch (IOException e) {
                 e.printStackTrace();
