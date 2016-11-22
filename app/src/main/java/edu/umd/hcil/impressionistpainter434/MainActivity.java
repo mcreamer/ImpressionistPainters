@@ -61,8 +61,10 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
 
         _impressionistView = (ImpressionistView)findViewById(R.id.viewImpressionist);
         ImageView imageView = (ImageView)findViewById(R.id.viewImage);
-        _impressionistView.setImageView(imageView);
+        CursorView cursorView = (CursorView)findViewById(R.id.viewCursor);
 
+        _impressionistView.setImageView(imageView);
+        _impressionistView.setCursorView(cursorView);
     }
 
     public void onButtonClickClear(View v) {
@@ -106,6 +108,10 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
             case R.id.menuLineSplatter:
                 Toast.makeText(this, "Line Splatter Brush", Toast.LENGTH_SHORT).show();
                 _impressionistView.setBrushType(BrushType.LineSplatter);
+                return true;
+            case R.id.menuRadial:
+                Toast.makeText(this, "Radial Brush", Toast.LENGTH_SHORT).show();
+                _impressionistView.setBrushType(BrushType.Radial);
                 return true;
         }
         return false;
@@ -167,7 +173,6 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
      * @param v
      */
     public void onButtonClickLoadImage(View v){
-
         // Without this call, the app was crashing in the onActivityResult method when trying to read from file system
         FileUtils.verifyStoragePermissions(this);
 
@@ -176,6 +181,15 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
                 android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
 
         startActivityForResult(i, RESULT_LOAD_IMAGE);
+    }
+
+    public void onButtonClickSave(View v){
+        // Without this call, the app was crashing in the onActivityResult method when trying to read from file system
+        FileUtils.verifyStoragePermissions(this);
+
+        MediaStore.Images.Media.insertImage(getContentResolver(),_impressionistView.getBitmap(),"Impressionist Picture","This is an image made in the impressionist app");
+
+        Toast.makeText(this, "Image Saved!", Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -200,6 +214,11 @@ public class MainActivity extends AppCompatActivity implements OnMenuItemClickLi
                 imageView.destroyDrawingCache();
                 imageView.setImageBitmap(bitmap);
                 imageView.setDrawingCacheEnabled(true);
+
+                // Execute the computer vision algorithm
+
+                // Give the information to the impressionist canvas
+
             } catch (IOException e) {
                 e.printStackTrace();
             }

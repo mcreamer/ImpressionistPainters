@@ -17,6 +17,7 @@
     <item android:id="@+id/menuLineSplatter"
         android:title="Line Splatter" />
 
-
+    <item android:id="@+id/menuRadial"
+        android:title="Radial" />
 
 </menu>

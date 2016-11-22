@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -15,6 +16,8 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageView;
+
+import junit.runner.BaseTestRunner;
 
 import java.text.MessageFormat;
 import java.util.Random;
@@ -25,6 +28,7 @@ import java.util.Random;
 public class ImpressionistView extends View {
 
     private ImageView _imageView;
+    private CursorView _cursorView;
 
     private Canvas _offScreenCanvas = null;
     private Bitmap _offScreenBitmap = null;
@@ -38,6 +42,11 @@ public class ImpressionistView extends View {
     private Paint _paintBorder = new Paint();
     private BrushType _brushType = BrushType.Square;
     private float _minBrushRadius = 5;
+
+    private Point center = new Point();
+    private Paint _whitePaint = new Paint(Color.WHITE);
+    private int _minRadius = 5;
+    private int _maxRadius = 30;
 
     public ImpressionistView(Context context) {
         super(context);
@@ -77,19 +86,21 @@ public class ImpressionistView extends View {
         _paintBorder.setStrokeWidth(3);
         _paintBorder.setStyle(Paint.Style.STROKE);
         _paintBorder.setAlpha(50);
-
         //_paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.MULTIPLY));
+
+        _whitePaint.setColor(Color.WHITE);
     }
 
     @Override
     protected void onSizeChanged (int w, int h, int oldw, int oldh){
-
         Bitmap bitmap = getDrawingCache();
         Log.v("onSizeChanged", MessageFormat.format("bitmap={0}, w={1}, h={2}, oldw={3}, oldh={4}", bitmap, w, h, oldw, oldh));
         if(bitmap != null) {
             _offScreenBitmap = getDrawingCache().copy(Bitmap.Config.ARGB_8888, true);
             _offScreenCanvas = new Canvas(_offScreenBitmap);
         }
+
+        center.set(getWidth()/2,getHeight()/2);
     }
 
     /**
@@ -98,6 +109,10 @@ public class ImpressionistView extends View {
      */
     public void setImageView(ImageView imageView){
         _imageView = imageView;
+    }
+
+    public void setCursorView(CursorView input) {
+        _cursorView = input;
     }
 
     /**
@@ -112,27 +127,57 @@ public class ImpressionistView extends View {
      * Clears the painting
      */
     public void clearPainting(){
-        //TODO
+        _offScreenCanvas.drawColor(Color.WHITE);
+        invalidate();
     }
 
     @Override
     public void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        Rect frame = getBitmapPositionInsideImageView(_imageView);
+
         if(_offScreenBitmap != null) {
             canvas.drawBitmap(_offScreenBitmap, 0, 0, _paint);
+
+            // Clean the top margin
+            canvas.drawRect(0,0,getWidth(),frame.top,_whitePaint);
+
+            // Clean the bottom margin
+            canvas.drawRect(0,frame.bottom,getWidth(),getHeight(),_whitePaint);
+
+            // Clean the left margin
+            canvas.drawRect(0,0,frame.left,getHeight(),_whitePaint);
+
+            // Clean the right margin
+            canvas.drawRect(frame.right,0,getWidth(),getHeight(),_whitePaint);
         }
 
         // Draw the border. Helpful to see the size of the bitmap in the ImageView
-        canvas.drawRect(getBitmapPositionInsideImageView(_imageView), _paintBorder);
+        canvas.drawRect(frame, _paintBorder);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent motionEvent){
         float x = motionEvent.getX(), y = motionEvent.getY();
 
+        if(_imageView.getDrawable() == null)
+            return true;
+
         Bitmap bitmap = ((BitmapDrawable)_imageView.getDrawable()).getBitmap();
-        int pictureColor = bitmap.getPixel((int)x,(int)y);
+        Rect bounds = getBitmapPositionInsideImageView(_imageView);
+        if(!bounds.contains((int)x,(int)y))
+            return true;
+
+        // Apply scaling and bounds
+        float scalex = bitmap.getWidth()/(float)(bounds.width());
+        float scaley = bitmap.getHeight()/(float)(bounds.height());
+        float picX = (x-bounds.left)*scalex;
+        float picY = (y-bounds.top)*scaley;
+
+        if(picX < 0 || picX > bitmap.getWidth() || picY < 0 || picY > bitmap.getHeight())
+            return true;
+        int pictureColor = bitmap.getPixel((int)picX,(int)picY);
         _paint.setColor(pictureColor);
 
         //TODO
@@ -142,21 +187,66 @@ public class ImpressionistView extends View {
 
         switch(motionEvent.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                _offScreenCanvas.drawCircle(x,y,_defaultRadius,_paint);
-                break;
+                _cursorView.setTouching(true);
             case MotionEvent.ACTION_MOVE:
-                _offScreenCanvas.drawCircle(x,y,_defaultRadius,_paint);
+                _cursorView.setTouchPoint((int)x,(int)y);
+
+                if(_brushType == BrushType.Circle) {
+                    _offScreenCanvas.drawCircle(x,y,_defaultRadius,_paint);
+                }
+                else if(_brushType == BrushType.Square) {
+                    _offScreenCanvas.drawRect(x,y,x+2*_defaultRadius,y+2*_defaultRadius,_paint);
+                }
+                else if(_brushType == BrushType.CircleSplatter) {
+                    for(int i = 0; i < 5; i++) {
+                        int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int radius = _minRadius+(int)(Math.random()*(_maxRadius-_minRadius));
+                        _offScreenCanvas.drawCircle(x1, y1, radius, _paint);
+                    }
+                }
+                else if(_brushType == BrushType.Line) {
+                    int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                    int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+
+                    int x2 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                    int y2 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                    _offScreenCanvas.drawLine(x1,y1,x2,y2, _paint);
+                }
+                else if(_brushType == BrushType.LineSplatter) {
+                    for(int i = 0; i < 10; i++) {
+                        int x1 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int y1 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+
+                        int x2 = (int)x+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        int y2 = (int)y+(int)(Math.random()*2*_defaultRadius)-_defaultRadius;
+                        _offScreenCanvas.drawLine(x1,y1,x2,y2, _paint);
+                    }
+                }
+                else if(_brushType == BrushType.Radial) {
+                    // The ratio that helps determine the line length in relation to the center
+                    float ratio = 0.25f;
+                    double line_radius = ratio*Math.sqrt(Math.pow(center.x-x,2)+Math.pow(center.y-y,2));
+
+                    float n_x1 = (float)(x - line_radius*Math.cos(Math.atan((y-center.y)/(x-center.x))));
+                    float n_y1 = (float)(y - line_radius*Math.sin(Math.atan((y-center.y)/(x-center.x))));
+
+                    float n_x2 = (float)(x + line_radius*Math.cos(Math.atan((y-center.y)/(x-center.x))));
+                    float n_y2 = (float)(y + line_radius*Math.sin(Math.atan((y-center.y)/(x-center.x))));
+
+                    _offScreenCanvas.drawLine(n_x1,n_y1,n_x2,n_y2,_paint);
+                }
+
+                _cursorView.invalidate();
                 break;
             case MotionEvent.ACTION_UP:
+                _cursorView.setTouching(false);
                 break;
         }
 
         invalidate();
         return true;
     }
-
-
-
 
     /**
      * This method is useful to determine the bitmap position within the Image View. It's not needed for anything else
@@ -202,6 +292,10 @@ public class ImpressionistView extends View {
         rect.set(left, top, left + widthActual, top + heightActual);
 
         return rect;
+    }
+
+    public Bitmap getBitmap() {
+        return _offScreenBitmap;
     }
 }
 
